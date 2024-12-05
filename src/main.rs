@@ -1,8 +1,12 @@
+use std::fs::OpenOptions;
+
 use anyhow::{anyhow, Result};
+use img::{csv_to_imgs, Img};
 use matrix::Matrix2d;
 use num::{Float, ToPrimitive};
 use rand::{seq::SliceRandom, Rng};
 
+pub mod img;
 pub mod matrix;
 
 #[cfg(test)]
@@ -17,23 +21,27 @@ pub fn uniform_distribution<T: Float>(low: T, high: T) -> Result<T> {
 
     let mut rng = rand::thread_rng();
 
-    T::from(low.to_f64().ok_or(anyhow!("Failed to convert to f64"))?
-        + (1.0
-            * rng.gen_range(
-                0.0..scaled_difference
-                    .to_f64()
-                    .ok_or(anyhow!("Failed to convert to f64"))?,
-            ))).ok_or(anyhow!("Failed to convert from f64"))
+    T::from(
+        low.to_f64().ok_or(anyhow!("Failed to convert to f64"))?
+            + (1.0
+                * rng.gen_range(
+                    0.0..scaled_difference
+                        .to_f64()
+                        .ok_or(anyhow!("Failed to convert to f64"))?,
+                )),
+    )
+    .ok_or(anyhow!("Failed to convert from f64"))
 }
 
 fn main() {
     let mut m = Matrix2d::<f32>::new(2, 3);
-    
-    
 
-
-
-
-   
-
+    let mut file = OpenOptions::new()
+        .read(true)
+        .open("data/mnist_train.csv")
+        .unwrap();
+    let imgs = csv_to_imgs(&mut file,12).unwrap();
+    for img in imgs {
+        println!("{}", img);
+    }
 }

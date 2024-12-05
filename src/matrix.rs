@@ -155,11 +155,6 @@ impl<T: Float + ToString> Display for Matrix2d<T> {
             }
             for c in 0..self.columns {
                 let i = (r * self.columns) + c;
-                //dbg!(i, r, c, self.rows, self.columns);
-                // let x = i / self.columns;
-                // let y = i % self.columns;
-                // out += &format!("({x},{y})");
-                //out += &i.to_string();
                 out += &self.inner[i].to_string();
                 if c != self.columns - 1 {
                     out += ",";
