@@ -11,11 +11,14 @@ fn dot() {
     }
 
     let mut m2 = Matrix2d::<f32>::new(3, 2);
-    let d = [1.,5.,3.,9.,7.,4.];
+    let d = [1., 5., 3., 9., 7., 4.];
     for r in 0..m2.rows() {
         for c in 0..m2.columns() {
             m2[r][c] = d[r * m2.columns() + c];
         }
     }
     println!("{m}\n{m2}");
+
+    let r = m.dot(&m2);
+    println!("{r}");
 }

@@ -111,10 +111,34 @@ impl<T: Float + Sized> Matrix2d<T> {
             for c2 in 0..rhs.columns {
                 let mut sum = T::zero();
                 for r2 in 0..rhs.rows {
-                    sum = sum + (self[r1][r2] * rhs[r2][r1]);
+                    sum = sum + (self[r1][r2] * rhs[r2][c2]);
                 }
                 new[r1][c2] = sum;
             }
+        }
+        new
+    }
+
+    pub fn scale(&self, n: T) -> Self {
+        let mut new = Self::new(self.rows, self.columns);
+        for (i, v) in self.inner.iter().enumerate() {
+            new.inner[i] = (*v) * n;
+        }
+        new
+    }
+
+    pub fn add_scalar(&self, n: T) -> Self {
+        let mut new = Self::new(self.rows, self.columns);
+        for (i, v) in self.inner.iter().enumerate() {
+            new.inner[i] = (*v) + n;
+        }
+        new
+    }
+
+    pub fn transpose(&self) -> Self {
+        let mut new = Self::new(self.columns, self.rows);
+        for (i, v) in self.inner.iter().enumerate() {
+            new.inner[i] = *v;
         }
         new
     }
@@ -132,11 +156,11 @@ impl<T: Float + ToString> Display for Matrix2d<T> {
             for c in 0..self.columns {
                 let i = (r * self.columns) + c;
                 //dbg!(i, r, c, self.rows, self.columns);
-                let x = i / self.columns;
-                let y = i % self.columns;
-                out += &format!("({x},{y})");
+                // let x = i / self.columns;
+                // let y = i % self.columns;
+                // out += &format!("({x},{y})");
                 //out += &i.to_string();
-                //out += &self.inner[i].to_string();
+                out += &self.inner[i].to_string();
                 if c != self.columns - 1 {
                     out += ",";
                 }

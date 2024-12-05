@@ -29,6 +29,7 @@ pub fn uniform_distribution<T: Float>(low: T, high: T) -> Result<T> {
 fn main() {
     let mut m = Matrix2d::<f32>::new(2, 3);
     
+    
 
 
 
