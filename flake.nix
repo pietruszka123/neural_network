@@ -28,7 +28,9 @@
           alsa-lib.dev
 
           libevdev
+          linuxKernel.packages.linux_6_6.perf
           udev.dev
+          cargo-flamegraph
         ];
 
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
@@ -40,6 +42,7 @@
           pkgs.xorg.libXcursor
           pkgs.xorg.libXi
           pkgs.xorg.libXrandr
+
         ];
 
         shellHook = ''

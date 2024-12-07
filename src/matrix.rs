@@ -1,20 +1,28 @@
 use core::panic;
 use std::{
-    error::Error,
-    fmt::Display,
-    ops::{Add, Index, IndexMut, Mul, Sub},
+    error::Error, fmt::{Debug, Display}, fs::OpenOptions, io::{Read, Write}, ops::{Add, Index, IndexMut, Mul, Sub}, str::FromStr, usize
 };
 
 use anyhow::{anyhow, Result};
 use num::{Float, ToPrimitive};
+use rayon::iter::{
+    IndexedParallelIterator, IntoParallelIterator, IntoParallelRefIterator,
+    IntoParallelRefMutIterator, ParallelIterator,
+};
 
 use crate::uniform_distribution;
+
+pub fn i_to_xy(i: usize, columns: usize) -> (usize, usize) {
+    return (i / columns ,i % columns, );
+}
 
 #[derive(Debug, Clone)]
 pub enum Axis {
     Row,
     Collumn,
 }
+
+trait MatrixBase: Clone + Float + Sized + Send {}
 
 #[derive(Debug, Clone)]
 pub struct Matrix2d<T: Clone> {
@@ -51,7 +59,7 @@ impl<T: Float + Sized> Matrix2d<T> {
     }
 
     pub fn argmax(&self) -> Result<usize, ()> {
-        if self.rows == 1 || self.columns == 1 {
+        if self.rows != 1 && self.columns != 1 {
             return Err(());
         }
 
@@ -93,13 +101,13 @@ impl<T: Float + Sized> Matrix2d<T> {
         F: Fn(&T) -> T,
     {
         let mut new = Self::new(self.rows, self.columns);
+
         for (i, v) in self.inner.iter().enumerate() {
             new.inner[i] = fun(v);
         }
+
         new
     }
-
-    //TODO: implemnet read from file and save
 
     pub fn dot(&self, rhs: &Self) -> Self {
         if self.columns != rhs.rows {
@@ -137,10 +145,139 @@ impl<T: Float + Sized> Matrix2d<T> {
 
     pub fn transpose(&self) -> Self {
         let mut new = Self::new(self.columns, self.rows);
-        for (i, v) in self.inner.iter().enumerate() {
-            new.inner[i] = *v;
+        for i in 0..self.columns * self.rows {
+            let (x, y) = i_to_xy(i, self.columns);
+
+            let new_i = y * self.rows + x;
+
+            new.inner[new_i] = self.inner[i];
         }
         new
+    }
+}
+
+pub trait Test: Float + Send + Sync {}
+impl<T: Float + Send + Sync> Test for T {}
+
+#[cfg(feature = "rayon")]
+impl<T: Test> Matrix2d<T> {
+    pub fn apply_par<F>(&self, fun: &F) -> Self
+    where
+        F: (Fn(&T) -> T) + Send + Sync + 'static,
+    {
+        let mut new = self.clone();
+
+        new.inner.par_iter_mut().for_each(|x| *x = fun(x));
+
+        new
+    }
+    pub fn dot_par(&self, rhs: &Self) -> Self {
+        if self.columns != rhs.rows {
+            panic!("Wrong size matrices size {} != {} self columns and rhs rows lenght must be the same",self.columns,rhs.rows);
+        }
+
+        let mut new = Self::new(self.rows, rhs.columns);
+
+        new.inner.par_iter_mut().enumerate().for_each(|(i, e)| {
+            let (x, y) = i_to_xy(i, new.columns);
+            let sum = (0..rhs.rows)
+                .into_par_iter()
+                .map(|r2| {
+                    //println!("x: {} y: {}  r2: {} self.rows: {} self.columns: {} rhs.rows: {} rhs.columns: {} i: {}",x,y,r2,self.rows,self.columns,rhs.rows,rhs.columns,i);
+                    return self[x][r2] * rhs[r2][y];
+                })
+                .reduce(
+                    || T::zero(),
+                    |x, y| {
+                        return x + y;
+                    },
+                );
+            *e = sum;
+        });
+
+        new
+    }
+
+    pub fn scale_par(&self, n: T) -> Self {
+        let mut new = self.clone();
+        new.inner.par_iter_mut().for_each(|x| *x = (*x) * n);
+        new
+    }
+
+    pub fn add_scalar_par(&self, n: T) -> Self {
+        let mut new = self.clone();
+        new.inner.par_iter_mut().for_each(|x| *x = (*x) + n);
+        new
+    }
+    pub fn transpose_par(&self) -> Self {
+        let mut new = Self::new(self.columns, self.rows);
+
+        new.inner.par_iter_mut().enumerate().for_each(|(i, v)| {
+            let (x, y) = i_to_xy(i, self.rows);
+
+            let old_i = y * self.columns + x;
+
+            *v = self.inner[old_i];
+        });
+
+        new
+    }
+
+    pub fn mul_par(mut self,rhs: &Self) -> Self{
+        panic_if_wrong_size(&self, &rhs);
+
+        self.inner.par_iter_mut().enumerate().for_each(|(i,x)|{
+            *x = (*x) * rhs.inner[i];
+
+        });
+        self
+    }
+    pub fn add_par(mut self,rhs: &Self) -> Self{
+        panic_if_wrong_size(&self, &rhs);
+
+        self.inner.par_iter_mut().enumerate().for_each(|(i,x)|{
+            *x = (*x) + rhs.inner[i];
+
+        });
+        self
+    }
+}
+
+impl<T: Float + ToString> Matrix2d<T> {
+    pub fn save(&self, filename: &str) -> Result<()> {
+        let mut file = OpenOptions::new().create(true).write(true).open(filename)?;
+        write!(file, "{}\n{}\n", self.rows, self.columns)?;
+        write!(
+            file,
+            "{}",
+            self.inner
+                .iter()
+                .map(|x| { x.to_string() })
+                .collect::<Vec<String>>()
+                .join("\n")
+        )?;
+        Ok(())
+    }
+    pub fn load(filename: &str) -> Result<Self> {
+        let mut file = OpenOptions::new().read(true).open(filename)?;
+        let mut b = String::new();
+        file.read_to_string(&mut b)?;
+
+        let mut splitted = b.split("\n");
+        let rows: usize = splitted.next().unwrap().parse()?;
+        let columns: usize = splitted.next().unwrap().parse()?;
+
+        let mut inner = Vec::new();
+
+        for line in splitted {
+            inner.push(T::from(line.trim().parse::<f64>()?).unwrap());
+        }
+
+        Ok(Self {
+            inner,
+            rows,
+            columns,
+        })
     }
 }
 

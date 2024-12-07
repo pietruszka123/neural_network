@@ -1,15 +1,16 @@
-use std::{cmp::min, fmt::Display, fs::File, io::Read, num::ParseIntError};
+use std::{fmt::Display, fs::File, io::Read};
 
 use anyhow::Result;
+use num::Float;
 
-use crate::matrix::{self, Matrix2d};
+use crate::matrix::Matrix2d;
 
 #[derive(Debug)]
-pub struct Img {
-    pub matrix: Matrix2d<f32>,
+pub struct Img<T: Clone> {
+    pub matrix: Matrix2d<T>,
     pub label: u32,
 }
-impl Img {
+impl<T:Clone + Float> Img<T> {
     pub fn new(rows: usize, columns: usize) -> Self {
         Self {
             matrix: Matrix2d::new(rows, columns),
@@ -18,7 +19,7 @@ impl Img {
     }
 }
 
-pub fn csv_to_imgs(file: &mut File, number_of_images: usize) -> Result<Vec<Img>> {
+pub fn csv_to_imgs<T: Clone + Float>(file: &mut File, number_of_images: usize) -> Result<Vec<Img<T>>> {
     let mut content = String::new();
     file.read_to_string(&mut content)?;
 
@@ -39,7 +40,7 @@ pub fn csv_to_imgs(file: &mut File, number_of_images: usize) -> Result<Vec<Img>>
                 },
             };
             if let Some(n) = n {
-                img.matrix[i / rows][i % rows] = (n as f32) / 256.0;
+                img.matrix[i / rows][i % rows] = (T::from(n).unwrap()) / T::from(256.0).unwrap();
             }
         }
         imgs.push(img);
@@ -49,18 +50,18 @@ pub fn csv_to_imgs(file: &mut File, number_of_images: usize) -> Result<Vec<Img>>
 
 const SHADES: [char; 5] = [' ', '░', '▒','▓', '█'];
 
-fn normalize(v: f32) -> f32 {
-    return v * 4.;
+fn normalize<T: Float>(v: T) -> T {
+    return v * T::from(4.).unwrap();
 }
 
-impl Display for Img {
+impl<T:Clone + Float> Display for Img<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut out = String::new();
         for r in 0..self.matrix.rows() {
             for c in 0..self.matrix.columns() {
                 let v = self.matrix[r][c];
 
-                out += &SHADES[normalize(v).ceil() as usize].to_string();
+                out += &SHADES[normalize(v).ceil().to_usize().unwrap()].to_string();
             }
 
             if r != self.matrix.rows() - 1 {
@@ -68,6 +69,6 @@ impl Display for Img {
             }
         }
 
-        write!(f, "{}\n{}", self.label, out)
+        write!(f, "label: {}\n{}", self.label, out)
     }
 }
